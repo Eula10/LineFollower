@@ -25,9 +25,9 @@ enum Estado {
 Estado estadoActual = SIGUE_LINEA;
 
 // Definir constantes PID para fácil modificación
-float Kp = 0.5;  // Proporcional
+float Kp = 0.25;  // Proporcional
 float Ki = 0.0;   // Integral (ajustar si es necesario)
-float Kd = 3.0;   // Derivativo
+float Kd = 6.0;   // Derivativo
 
 int16_t integral = 0;  // Acumulador del término integral
 int16_t lastError = 0; // Último error para el cálculo derivativo
@@ -159,5 +159,23 @@ bool todosSobreBlanco() {
 
 void stayInWhiteZone() {
     Serial1.println("Zona Blanca");
-    motors.setSpeeds(0, 0);
+    
+    if (todosSobreNegro()) {
+      giro();
+    }
+    else {
+        // Evaluar si la línea está en el centro, derecha o izquierda
+        if (lineSensorValues[0] > THRESHOLD_HIGH) {
+            giro();
+        }
+        else if (lineSensorValues[4] > THRESHOLD_HIGH) {
+            giro();
+        }
+        else {
+            motors.setSpeeds(limSpeed, limSpeed);
+        }
+    }
 }
+
+void giro(){
+  }
