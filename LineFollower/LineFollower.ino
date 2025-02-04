@@ -12,6 +12,7 @@
 const uint16_t limSpeed = 2 * minSpeed;
 
 bool useEmitters = true;
+bool running = false;
 
 Zumo32U4LineSensors lineSensors;
 Zumo32U4Motors motors;
@@ -70,36 +71,40 @@ void setup() {
 }
 
 void loop() {
-  // Get the line position
-  int16_t position = lineSensors.readLine(lineSensorValues);
-//  sprintf(buffer, "%d", position);  
-//  Serial1.write(buffer);
-//  Serial1.println("\n");
-
-  // Evaluate state change
-    switch (currentState) {
-        case FOLLOW_LINE:
-            Serial1.println("Follow line\n");
-            followLine(position);
-            if (allOnBlack()) {
-                currentState = BLACK_ZONE;
-            }
-            break;
-
-        case BLACK_ZONE:
-            Serial1.println("Black zone\n");
-            motors.setSpeeds(limSpeed, limSpeed);  // Move forward in a straight line
-            if (allOnWhite()) {
-                currentState = WHITE_ZONE;
-            }
-            break;
-
-        case WHITE_ZONE:
-            Serial1.println("White zone\n");
-            stayInWhiteZone();
-            break;
+  if (running) {
+    // Get the line position
+    int16_t position = lineSensors.readLine(lineSensorValues);
+  //  sprintf(buffer, "%d", position);  
+  //  Serial1.write(buffer);
+  //  Serial1.println("\n");
+  
+    // Evaluate state change
+      switch (currentState) {
+          case FOLLOW_LINE:
+              Serial1.println("Follow line\n");
+              followLine(position);
+              if (allOnBlack()) {
+                  currentState = BLACK_ZONE;
+              }
+              break;
+  
+          case BLACK_ZONE:
+              Serial1.println("Black zone\n");
+              motors.setSpeeds(limSpeed, limSpeed);  // Move forward in a straight line
+              if (allOnWhite()) {
+                  currentState = WHITE_ZONE;
+              }
+              break;
+  
+          case WHITE_ZONE:
+              Serial1.println("White zone\n");
+              stayInWhiteZone();
+              break;
+      }
+  //    delay(500);
+  } else {
+        motors.setSpeeds(0, 0);  
     }
-//    delay(500);
 }
 
 void followLine(int16_t position) {
@@ -178,3 +183,12 @@ void stayInWhiteZone() {
 
 void turn(){
   }
+
+  // Esta función se ejecuta automáticamente cuando hay datos en Serial1
+void serialEvent1() {
+    while (Serial1.available()) {  
+        char receivedChar = Serial1.read();  
+        if (receivedChar == 'S') running = true;
+        if (receivedChar == 'P') running = false;
+    }
+}
