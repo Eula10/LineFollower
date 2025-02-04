@@ -39,6 +39,8 @@ static uint16_t lastSampleTime = 0;
 
 unsigned int lineSensorValues[NUM_SENSORS];
 
+
+
 void calibrateSensors() {
    // Wait 1 second and then calibrate the sensors while rotating
   delay(1000);
@@ -54,8 +56,13 @@ void calibrateSensors() {
 }
 
 void setup() {
+  uint16_t batteryLevel = readBatteryMillivolts();
+  
   Serial1.begin(9600);
   Serial.begin(9600);
+  sprintf(buffer, "%u", batteryLevel);  
+  Serial1.print("Battery Level: ");  
+  Serial1.println(batteryLevel);
   lineSensors.initFiveSensors();
 
   // Wait until button C is pressed before starting
@@ -74,9 +81,8 @@ void loop() {
   if (running) {
     // Get the line position
     int16_t position = lineSensors.readLine(lineSensorValues);
-  //  sprintf(buffer, "%d", position);  
-  //  Serial1.write(buffer);
-  //  Serial1.println("\n");
+    Serial1.println(position);
+    Serial1.println();
   
     // Evaluate state change
       switch (currentState) {
@@ -162,8 +168,6 @@ bool allOnWhite() {
 }
 
 void stayInWhiteZone() {
-    Serial1.println("White Zone");
-    
     if (allOnBlack()) {
       turn();
     }
