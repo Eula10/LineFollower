@@ -5,10 +5,10 @@
 #define minSpeed 41
 #define NUM_SENSORS 5
 
-#define THRESHOLD_HIGH 800  // Umbral alto
-#define THRESHOLD_LOW 200    // Umbral bajo
+#define THRESHOLD_HIGH 800  // High threshold
+#define THRESHOLD_LOW 200    // Low threshold
 
-// Este es el límite de velocidad para los motores
+// This is the motor speed limit
 const uint16_t limSpeed = 2 * minSpeed;
 
 bool useEmitters = true;
@@ -16,21 +16,21 @@ bool useEmitters = true;
 Zumo32U4LineSensors lineSensors;
 Zumo32U4Motors motors;
 
-enum Estado {
-    SIGUE_LINEA,
-    ZONA_NEGRA,
-    ZONA_BLANCA
+enum State {
+    FOLLOW_LINE,
+    BLACK_ZONE,
+    WHITE_ZONE
 };
 
-Estado estadoActual = SIGUE_LINEA;
+State currentState = FOLLOW_LINE;
 
-// Definir constantes PID para fácil modificación
-float Kp = 0.25;  // Proporcional
-float Ki = 0.0;   // Integral (ajustar si es necesario)
-float Kd = 6.0;   // Derivativo
+// Define PID constants for easy modification
+float Kp = 0.25;  // Proportional
+float Ki = 0.0;   // Integral (adjust if necessary)
+float Kd = 6.0;   // Derivative
 
-int16_t integral = 0;  // Acumulador del término integral
-int16_t lastError = 0; // Último error para el cálculo derivativo
+int16_t integral = 0;  // Accumulator for the integral term
+int16_t lastError = 0; // Last error for derivative calculation
 
 char buffer[10];
 
@@ -39,7 +39,7 @@ static uint16_t lastSampleTime = 0;
 unsigned int lineSensorValues[NUM_SENSORS];
 
 void calibrateSensors() {
-   //Espera 1 segundo y luego calibra los sensores girando
+   // Wait 1 second and then calibrate the sensors while rotating
   delay(1000);
   for (uint16_t i = 0; i < 120; i++) {
     if (i > 30 && i <= 90) {
@@ -57,12 +57,12 @@ void setup() {
   Serial.begin(9600);
   lineSensors.initFiveSensors();
 
-  // Espera a que se presione el botón C antes de iniciar
+  // Wait until button C is pressed before starting
   //buttonC.waitForButton();
 
   calibrateSensors();
 
-  // Inicializar integral en 0
+  // Initialize integral to 0
   integral = 0;
   lastSampleTime = 0;
 
@@ -70,31 +70,31 @@ void setup() {
 }
 
 void loop() {
-  // Obtener la posición de la línea
+  // Get the line position
   int16_t position = lineSensors.readLine(lineSensorValues);
 //  sprintf(buffer, "%d", position);  
 //  Serial1.write(buffer);
 //  Serial1.println("\n");
 
-  // Evaluar cambio de estado
-    switch (estadoActual) {
-        case SIGUE_LINEA:
+  // Evaluate state change
+    switch (currentState) {
+        case FOLLOW_LINE:
             Serial1.println("Follow line\n");
             followLine(position);
-            if (todosSobreNegro()) {
-                estadoActual = ZONA_NEGRA;
+            if (allOnBlack()) {
+                currentState = BLACK_ZONE;
             }
             break;
 
-        case ZONA_NEGRA:
+        case BLACK_ZONE:
             Serial1.println("Black zone\n");
-            motors.setSpeeds(limSpeed, limSpeed);  // Avanzar recto
-            if (todosSobreBlanco()) {
-                estadoActual = ZONA_BLANCA;
+            motors.setSpeeds(limSpeed, limSpeed);  // Move forward in a straight line
+            if (allOnWhite()) {
+                currentState = WHITE_ZONE;
             }
             break;
 
-        case ZONA_BLANCA:
+        case WHITE_ZONE:
             Serial1.println("White zone\n");
             stayInWhiteZone();
             break;
@@ -102,33 +102,32 @@ void loop() {
 //    delay(500);
 }
 
-
 void followLine(int16_t position) {
-  // Calcular el error (desviación del centro)
+  // Calculate the error (deviation from the center)
   int16_t error = position - 2000;
 
-  // Calcular el término integral (ajustar Ki antes de usarlo)
+  // Calculate the integral term (adjust Ki before using it)
   integral += error;
 
-  // Calcular la corrección PID
+  // Calculate the PID correction
   int16_t speedDifference = (Kp * error) + (Ki * integral) + (Kd * (error - lastError));
 
-  lastError = error; // Guardar el error actual para el próximo cálculo derivativo
+  lastError = error; // Save the current error for the next derivative calculation
 
-  // Calcular las velocidades de los motores
+  // Calculate motor speeds
   int16_t leftSpeed = (int16_t)limSpeed + speedDifference;
   int16_t rightSpeed = (int16_t)limSpeed - speedDifference;
 
-  // Restringir las velocidades para evitar valores fuera de rango
+  // Restrict speeds to avoid out-of-range values
   leftSpeed = constrain(leftSpeed, 0, (int16_t)limSpeed);
   rightSpeed = constrain(rightSpeed, 0, (int16_t)limSpeed);
 
-  // Aplicar las velocidades a los motores
+  // Apply speeds to the motors
   motors.setSpeeds(leftSpeed, rightSpeed);
 }
 
-// Verificar si todos los sensores detectan negro (> 1000)
-bool todosSobreNegro() {
+// Check if all sensors detect black (> 1000)
+bool allOnBlack() {
 //  char buffer[80];
 //  sprintf(buffer, "%4d %4d %4d %4d %4d %c\n",
 //    lineSensorValues[0],
@@ -147,8 +146,8 @@ bool todosSobreNegro() {
     return true;
 }
 
-// Verificar si todos los sensores detectan blanco (< 200)
-bool todosSobreBlanco() {
+// Check if all sensors detect white (< 200)
+bool allOnWhite() {
     for (int i = 0; i < NUM_SENSORS; i++) {
         if (lineSensorValues[i] > THRESHOLD_LOW) {
             return false;
@@ -158,18 +157,18 @@ bool todosSobreBlanco() {
 }
 
 void stayInWhiteZone() {
-    Serial1.println("Zona Blanca");
+    Serial1.println("White Zone");
     
-    if (todosSobreNegro()) {
-      giro();
+    if (allOnBlack()) {
+      turn();
     }
     else {
-        // Evaluar si la línea está en el centro, derecha o izquierda
+        // Evaluate if the line is in the center, right, or left
         if (lineSensorValues[0] > THRESHOLD_HIGH) {
-            giro();
+            turn();
         }
         else if (lineSensorValues[4] > THRESHOLD_HIGH) {
-            giro();
+            turn();
         }
         else {
             motors.setSpeeds(limSpeed, limSpeed);
@@ -177,5 +176,5 @@ void stayInWhiteZone() {
     }
 }
 
-void giro(){
+void turn(){
   }
