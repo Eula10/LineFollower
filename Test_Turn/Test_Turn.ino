@@ -11,7 +11,7 @@ Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
 
 void setup() {
-  Serial.begin(9600);
+  Serial.begin(38400);
   encoders.getCountsAndResetLeft();
   encoders.getCountsAndResetRight();
 }
@@ -22,7 +22,7 @@ void loop() {
   
   // Calcular cuántos pulsos por rueda se necesitan para recorrer esa distancia
   int targetTicks = distanceToTravel / DISTANCE_PER_PULSE;
-   targetTicks = 1000;
+   targetTicks = 700;
   
   // Rotar el robot en sentido horario (la rueda derecha avanza y la rueda izquierda retrocede)
   motors.setSpeeds(100, -100);  // Rueda izquierda va hacia atrás y derecha hacia adelante
