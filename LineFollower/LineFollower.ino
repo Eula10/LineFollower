@@ -2,11 +2,14 @@
 #include <Zumo32U4.h>
 
 #define maxSpeed 400
-#define minSpeed 41
+#define minSpeed 75 //41
 #define NUM_SENSORS 5
 
 #define THRESHOLD_HIGH 800  // High threshold
 #define THRESHOLD_LOW 200    // Low threshold
+  
+#define RECUL_SPEED -150
+#define TEMPSDERECUL 250
 
 // These might need to be tuned for different motor types.
 #define REVERSE_SPEED     200  // 0 is stopped, 400 is full speed
@@ -14,6 +17,14 @@
 #define FORWARD_SPEED     200
 #define REVERSE_DURATION  200  // ms
 #define TURN_DURATION     300  // ms
+
+const int32_t turnSpeed = 150; // Vitesse de rotation
+const int32_t ticksPerTurn = 2490; // Nombre de ticks pour 360°
+const int32_t ticks45 = ticksPerTurn * 45 / 360;  // 45°
+const int32_t ticks90 = ticksPerTurn * 90 / 360;  // 90°
+const int32_t ticks120 = ticksPerTurn * 120 / 360; // 135°
+
+int32_t targetTicks = ticks45;
 
 // This is the motor speed limit
 const uint16_t limSpeed = 2 * minSpeed;
@@ -23,6 +34,7 @@ bool running = false;
 
 Zumo32U4LineSensors lineSensors;
 Zumo32U4Motors motors;
+Zumo32U4Encoders encoders;
 
 enum State {
     FOLLOW_LINE,
@@ -30,6 +42,14 @@ enum State {
     WHITE_ZONE
 };
 
+enum WhiteState {
+    initial,
+    straight,
+    turn_right,
+    turn_left
+};
+
+WhiteState stateWhite = straight;
 State currentState = FOLLOW_LINE;
 
 // Define PID constants for easy modification
@@ -60,10 +80,67 @@ void calibrateSensors() {
   motors.setSpeeds(0, 0);
 }
 
+void turnAngleLeft(void)
+{
+    Serial1.print("ANGLE : ");Serial1.println(targetTicks);
+    encoders.getCountsAndResetLeft();
+    encoders.getCountsAndResetRight();
+
+    while (abs(encoders.getCountsRight()) < targetTicks)
+    {
+        Serial1.println(encoders.getCountsRight());
+        motors.setSpeeds(-turnSpeed, turnSpeed); // Rotation sur place
+    }
+
+    motors.setSpeeds(0, 0); // Stop rotation
+
+    if(targetTicks == ticks45)
+    {
+      targetTicks = ticks90;
+    }
+    else if(targetTicks == ticks90)
+    {
+      targetTicks = ticks120;
+    }
+    else if(targetTicks == ticks120)
+    {
+      targetTicks = ticks45;
+    }
+}
+
+void turnAngleRight()
+{
+  
+    Serial1.print("ANGLE : ");Serial1.println(targetTicks);
+    encoders.getCountsAndResetLeft();
+    encoders.getCountsAndResetRight();
+
+    while (abs(encoders.getCountsRight()) < targetTicks)
+    {
+        //Serial1.println(encoders.getCountsRight());
+        motors.setSpeeds(turnSpeed, -turnSpeed); // Rotation sur place
+    }
+
+    motors.setSpeeds(0, 0); // Stop rotation
+
+    if(targetTicks == ticks45)
+    {
+      targetTicks = ticks90;
+    }
+    else if(targetTicks == ticks90)
+    {
+      targetTicks = ticks120;
+    }
+    else if(targetTicks == ticks120)
+    {
+      targetTicks = ticks45;
+    }
+}
+
 void setup() {
   uint16_t batteryLevel = readBatteryMillivolts();
   
-  Serial1.begin(9600);
+  Serial1.begin(38400);
   Serial.begin(9600);  
   Serial1.print("Battery Level: ");  
   Serial1.println(batteryLevel);
@@ -86,29 +163,29 @@ void loop() {
     // Get the line position
     int16_t position = lineSensors.readLine(lineSensorValues);
     //lineSensors.read(lineSensorValues);
-    Serial1.println(position);
-    Serial1.println();
+    //Serial1.println(position);
+   // Serial1.println();
   
     // Evaluate state change
       switch (currentState) {
           case FOLLOW_LINE:
-              Serial1.println("Follow line\n");
+              //Serial1.println("Follow line\n");
               followLine(position);
               if (allOnBlack()) {
+                  Serial1.println("BLACK_ZONE\n");
                   currentState = BLACK_ZONE;
               }
               break;
   
           case BLACK_ZONE:
-              Serial1.println("Black zone\n");
               motors.setSpeeds(limSpeed, limSpeed);  // Move forward in a straight line
               if (allOnWhite()) {
+                  Serial1.println("White zone\n");
                   currentState = WHITE_ZONE;
               }
               break;
   
           case WHITE_ZONE:
-              Serial1.println("White zone\n");
               stayInWhiteZone();
               break;
       }
@@ -173,22 +250,46 @@ bool allOnWhite() {
 }
 
 void stayInWhiteZone() {
-    motors.setSpeeds(limSpeed, limSpeed);
-//    if (allOnBlack()) {
-//      turn();
-//    }
-//    else {
-//        // Evaluate if the line is in the center, right, or left
-//        if (lineSensorValues[0] > THRESHOLD_HIGH) {
-//            turn();
-//        }
-//        else if (lineSensorValues[NUM_SENSORS - 1] > THRESHOLD_HIGH) {
-//            turn();
-//        }
-//        else {
-//            motors.setSpeeds(limSpeed, limSpeed);
-//        }
-//    }
+  switch (stateWhite) {
+    case initial:
+      Serial1.println("init");
+      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+      stateWhite = straight;
+      break;
+      
+    case straight:
+      if(lineSensorValues[2] > THRESHOLD_HIGH || lineSensorValues[3] > THRESHOLD_HIGH || lineSensorValues[4] > THRESHOLD_HIGH)
+      {
+        motors.setSpeeds(RECUL_SPEED, RECUL_SPEED);
+        delay(TEMPSDERECUL);
+        Serial1.println("turn_left");
+        stateWhite = turn_left;
+      }
+
+      else if(lineSensorValues[0] > THRESHOLD_HIGH || lineSensorValues[1] > THRESHOLD_HIGH)
+      {
+        motors.setSpeeds(RECUL_SPEED, RECUL_SPEED);
+        delay(TEMPSDERECUL);
+        Serial1.println("turn_right");
+        stateWhite = turn_right; 
+      }
+    break;
+
+    case turn_right:
+      turnAngleRight();
+      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+      stateWhite = straight;
+      Serial1.println("straight");
+      break;
+
+    case turn_left:
+      turnAngleLeft();
+      motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
+      stateWhite = straight;
+      Serial1.println("straight");
+      break;
+}
+
 }
 
 void turn(){
