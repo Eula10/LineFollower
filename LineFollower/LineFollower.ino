@@ -2,7 +2,7 @@
 #include <Zumo32U4.h>
 
 #define maxSpeed 400
-#define minSpeed 75 //41
+#define minSpeed 41
 #define NUM_SENSORS 5
 
 #define THRESHOLD_HIGH 800  // High threshold
@@ -146,10 +146,7 @@ void setup() {
   Serial1.println(batteryLevel);
   lineSensors.initFiveSensors();
 
-  // Wait until button C is pressed before starting
-  //buttonC.waitForButton();
-
-  calibrateSensors();
+  //calibrateSensors();
 
   // Initialize integral to 0
   integral = 0;
@@ -159,6 +156,8 @@ void setup() {
 }
 
 void loop() {
+  motors.setSpeeds(200, 200);
+  
   if (running) {
     // Get the line position
     int16_t position = lineSensors.readLine(lineSensorValues);
