@@ -173,22 +173,22 @@ bool allOnWhite() {
 }
 
 void stayInWhiteZone() {
-  
-    if (allOnBlack()) {
-      turn();
-    }
-    else {
-        // Evaluate if the line is in the center, right, or left
-        if (lineSensorValues[0] > THRESHOLD_HIGH) {
-            turn();
-        }
-        else if (lineSensorValues[NUM_SENSORS - 1] > THRESHOLD_HIGH) {
-            turn();
-        }
-        else {
-            motors.setSpeeds(limSpeed, limSpeed);
-        }
-    }
+    motors.setSpeeds(limSpeed, limSpeed);
+//    if (allOnBlack()) {
+//      turn();
+//    }
+//    else {
+//        // Evaluate if the line is in the center, right, or left
+//        if (lineSensorValues[0] > THRESHOLD_HIGH) {
+//            turn();
+//        }
+//        else if (lineSensorValues[NUM_SENSORS - 1] > THRESHOLD_HIGH) {
+//            turn();
+//        }
+//        else {
+//            motors.setSpeeds(limSpeed, limSpeed);
+//        }
+//    }
 }
 
 void turn(){
