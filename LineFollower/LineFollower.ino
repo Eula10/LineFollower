@@ -8,6 +8,13 @@
 #define THRESHOLD_HIGH 800  // High threshold
 #define THRESHOLD_LOW 200    // Low threshold
 
+// These might need to be tuned for different motor types.
+#define REVERSE_SPEED     200  // 0 is stopped, 400 is full speed
+#define TURN_SPEED        200
+#define FORWARD_SPEED     200
+#define REVERSE_DURATION  200  // ms
+#define TURN_DURATION     300  // ms
+
 // This is the motor speed limit
 const uint16_t limSpeed = 2 * minSpeed;
 
@@ -39,8 +46,6 @@ static uint16_t lastSampleTime = 0;
 
 unsigned int lineSensorValues[NUM_SENSORS];
 
-
-
 void calibrateSensors() {
    // Wait 1 second and then calibrate the sensors while rotating
   delay(1000);
@@ -59,8 +64,7 @@ void setup() {
   uint16_t batteryLevel = readBatteryMillivolts();
   
   Serial1.begin(9600);
-  Serial.begin(9600);
-  sprintf(buffer, "%u", batteryLevel);  
+  Serial.begin(9600);  
   Serial1.print("Battery Level: ");  
   Serial1.println(batteryLevel);
   lineSensors.initFiveSensors();
@@ -81,6 +85,7 @@ void loop() {
   if (running) {
     // Get the line position
     int16_t position = lineSensors.readLine(lineSensorValues);
+    //lineSensors.read(lineSensorValues);
     Serial1.println(position);
     Serial1.println();
   
@@ -168,6 +173,7 @@ bool allOnWhite() {
 }
 
 void stayInWhiteZone() {
+  
     if (allOnBlack()) {
       turn();
     }
@@ -176,7 +182,7 @@ void stayInWhiteZone() {
         if (lineSensorValues[0] > THRESHOLD_HIGH) {
             turn();
         }
-        else if (lineSensorValues[4] > THRESHOLD_HIGH) {
+        else if (lineSensorValues[NUM_SENSORS - 1] > THRESHOLD_HIGH) {
             turn();
         }
         else {
@@ -186,6 +192,11 @@ void stayInWhiteZone() {
 }
 
 void turn(){
+  motors.setSpeeds(-REVERSE_SPEED, -REVERSE_SPEED);
+    delay(REVERSE_DURATION);
+    motors.setSpeeds(TURN_SPEED, -TURN_SPEED);
+    delay(TURN_DURATION);
+    motors.setSpeeds(FORWARD_SPEED, FORWARD_SPEED);
   }
 
   // Esta función se ejecuta automáticamente cuando hay datos en Serial1
