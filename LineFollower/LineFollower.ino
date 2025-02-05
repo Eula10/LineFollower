@@ -1,10 +1,10 @@
 #include <Wire.h>
 #include <Zumo32U4.h>
 
-const int MAX_SPEED = 400;
 const int MIN_SPEED = 41;
-const int LIM_SPEED = 2 * MIN_SPEED;
+int LIM_SPEED = 2 * MIN_SPEED; //Min speed = 41, Max speed = 400
 const int NUM_SENSORS = 5;
+const int REVERSE_DURATION = 500;
 
 const int THRESHOLD_HIGH = 800;
 const int THRESHOLD_LOW = 200;
@@ -12,6 +12,8 @@ const int THRESHOLD_LOW = 200;
 const int32_t ticksPerTurn = 2490; // Nombre de ticks pour 360°
 const int angles[] = {45, 90, 120}; // Lista de ángulos
 int angleIndex = 0;  // Índice para iterar entre los ángulos
+int commandAngle = 4;
+
 int direction = 1;  // 1 para giro a la derecha, -1 para giro a la izquierda
 
 bool useEmitters = true;
@@ -24,15 +26,12 @@ Zumo32U4Encoders encoders;
 enum class State : uint8_t {
     FOLLOW_LINE,
     BLACK_ZONE,
-    WHITE_ZONE
-};
-
-enum class WhiteState : uint8_t {
+    WHITE_ZONE,
     TURN_RIGHT,
     TURN_LEFT
 };
 
-State currentState = FOLLOW_LINE;
+State currentState = State::FOLLOW_LINE;
 
 // Define PID constants for easy modification
 float Kp = 0.25;  // Proportional
@@ -69,12 +68,12 @@ void followLine(int16_t position) {
   lastError = error; 
 
   // Calculate motor speeds
-  int16_t leftSpeed = (int16_t)limSpeed + speedDifference;
-  int16_t rightSpeed = (int16_t)limSpeed - speedDifference;
+  int16_t leftSpeed = (int16_t)LIM_SPEED + speedDifference;
+  int16_t rightSpeed = (int16_t)LIM_SPEED - speedDifference;
 
   // Restrict speeds to avoid out-of-range values
-  leftSpeed = constrain(leftSpeed, 0, (int16_t)limSpeed);
-  rightSpeed = constrain(rightSpeed, 0, (int16_t)limSpeed);
+  leftSpeed = constrain(leftSpeed, 0, (int16_t)LIM_SPEED);
+  rightSpeed = constrain(rightSpeed, 0, (int16_t)LIM_SPEED);
 
   // Apply speeds to the motors
   motors.setSpeeds(leftSpeed, rightSpeed);
@@ -101,29 +100,35 @@ bool allOnWhite() {
 }
 
 void updateAngle() {
-    angleIndex = (angleIndex + 1) % 3;  // Avanza cíclicamente entre 0, 1 y 2
+    if (commandAngle >= 1 && commandAngle <= 3) {
+        angleIndex = commandAngle - 1;  // Ajusta el índice para 0, 1, 2
+    } else if (commandAngle == 4) {
+        // Reinicia el ciclo de ángulos (itera cíclicamente entre 45, 90, 120)
+        angleIndex = (angleIndex + 1) % 3;
+    }
+    Serial1.print("Angle Index = ");
+    Serial1.println(angleIndex);
 }
 
 void turnNextAngle(int direction) {
     int angle = angles[angleIndex] * direction;  // Aplica la dirección al ángulo
-    turnAngle(angle);  // Llama a la función de giro
+    turnAngle(angle, direction);  // Pasa la dirección a turnAngle
     updateAngle();  // Actualiza el índice para el próximo ángulo
 }
 
-void turnAngle(int angle){
+void turnAngle(int angle, int direction){
     encoders.getCountsAndResetLeft();
     encoders.getCountsAndResetRight();
 
-    int direction = (angle > 0) ? 1 : -1; // Determina el sentido del giro
-
-    int angleTicks = ticksPerTurn * angle / 360;
-    targetTicks = ticksPerTurn * angle / 360;
-    while (abs(encoders.getCountsRight()) < angleTicks){
-        motors.setSpeeds(direction * -turnSpeed, direction * turnSpeed); // Giro en el sentido indicado
-    }
+    int angleTicks = ticksPerTurn * abs(angle) / 360;  // Usa el valor absoluto de angle
     
-    motors.setSpeeds(0, 0); // Detener giro
-}
+    // Asegura que el giro se haga en la dirección correcta
+    while (abs(encoders.getCountsRight()) < angleTicks){
+        motors.setSpeeds(direction * -LIM_SPEED, direction * LIM_SPEED); // Dirección controlada por el parámetro 'direction'
+    }
+
+    motors.setSpeeds(0, 0); // Detener motores después del giro
+}  
 
 void setup() {
   uint16_t batteryLevel = readBatteryMillivolts();
@@ -134,7 +139,7 @@ void setup() {
   Serial1.println(batteryLevel);
   lineSensors.initFiveSensors();
 
-  //calibrateSensors();
+  calibrateSensors();
 
   // Initialize integral to 0
   integral = 0;
@@ -144,15 +149,14 @@ void setup() {
 }
 
 void loop() {
-  void loop() {
     if (!running) {
         motors.setSpeeds(0, 0);
         return;
     }
-
+    
     // Obtener posición de la línea
     int16_t position = lineSensors.readLine(lineSensorValues);
-
+    
     switch (currentState) {
         case State::FOLLOW_LINE:
             followLine(position);
@@ -161,7 +165,7 @@ void loop() {
                 currentState = State::BLACK_ZONE;
             }
             break;
-
+    
         case State::BLACK_ZONE:
             motors.setSpeeds(LIM_SPEED, LIM_SPEED);  // Avanzar en línea recta
             if (allOnWhite()) {
@@ -169,31 +173,34 @@ void loop() {
                 currentState = State::WHITE_ZONE;
             }
             break;
-
+    
         case State::WHITE_ZONE:
+            // Comprobar si es necesario girar a la izquierda o derecha
             if (lineSensorValues[2] > THRESHOLD_HIGH || lineSensorValues[3] > THRESHOLD_HIGH || lineSensorValues[4] > THRESHOLD_HIGH) {
                 motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
+                delay(REVERSE_DURATION);
                 Serial1.println("turn_left");
-                stateWhite = WhiteState::TURN_LEFT;
+                currentState = State::TURN_LEFT;  // Cambiar a giro a la izquierda
             } 
             else if (lineSensorValues[0] > THRESHOLD_HIGH || lineSensorValues[1] > THRESHOLD_HIGH) {
                 motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
+                delay(REVERSE_DURATION);
                 Serial1.println("turn_right");
-                stateWhite = WhiteState::TURN_RIGHT;
+                currentState = State::TURN_RIGHT;  // Cambiar a giro a la derecha
             }
             break;
-
-        case WhiteState::TURN_LEFT:
-        case WhiteState::TURN_RIGHT:
-            int direction = (stateWhite == WhiteState::TURN_LEFT) ? -1 : 1;
+    
+        case State::TURN_LEFT:
+        case State::TURN_RIGHT:
+            int direction = (currentState == State::TURN_LEFT) ? 1 : -1;
             turnNextAngle(direction);  // Gira dependiendo de la dirección
             motors.setSpeeds(LIM_SPEED, LIM_SPEED);
-            Serial1.println("straight");
-            stateWhite = WhiteState::INITIAL;
+            Serial1.println("Moving Forward");
+            currentState = State::WHITE_ZONE;  // Resetea el estado después de girar
             break;
-
+    
         default:
-            Serial1.println("Estado desconocido");
+            //Serial1.println("White State");
             break;
     }
 }
@@ -204,5 +211,11 @@ void serialEvent1() {
         char receivedChar = Serial1.read();  
         if (receivedChar == 'S') running = true;
         if (receivedChar == 'P') running = false;
+        if (receivedChar == 'B') LIM_SPEED = 400;
+        if (receivedChar == 'N') LIM_SPEED = 2 * MIN_SPEED;
+        if (receivedChar == '1') commandAngle = 1;
+        if (receivedChar == '2') commandAngle = 2;
+        if (receivedChar == '3') commandAngle = 3;
+        if (receivedChar == '4') commandAngle = 4;
     }
 }
