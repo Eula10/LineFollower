@@ -1,13 +1,15 @@
 #include <Wire.h>
 #include <Zumo32U4.h>
 
+
 enum class State : uint8_t {
     FOLLOW_LINE,
     BLACK_ZONE,
     WHITE_ZONE,
     TURN_RIGHT,
     TURN_LEFT,
-    COMBAT_MODE
+    COMBAT_MODE,
+    STOP
 };
 
 volatile State currentState = State::FOLLOW_LINE;
@@ -47,11 +49,18 @@ void loop() {
 
     case State::COMBAT_MODE:
       Serial1.println("Combat Mode On");
-      Serial1.print("Edge = ");
+      if (detectEdge()) {
+           motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
+          delay(REVERSE_DURATION);
+          turnAngle(180,1);
+          motors.setSpeeds(LIM_SPEED, LIM_SPEED);
+          delay(REVERSE_DURATION);                
+      }
       break;
 
     default:
-      Serial1.println("indefinido");
+      Serial1.println("Stop");
+      motors.setSpeeds(0, 0);
       break;
   }
   delay(1000);
@@ -61,12 +70,12 @@ void loop() {
 void serialEvent1() {
     while (Serial1.available()) {  
         char receivedChar = Serial1.read();  
-        if (receivedChar == 'S') running = true;
-        if (receivedChar == 'P') running = false;
-        if (receivedChar == 'B');
+        if (receivedChar == 'S') currentState = State::FOLLOW_LINE;
+        if (receivedChar == 'P') currentState = State::STOP;
+        if (receivedChar == 'B') LIM_SPEED = 400;
         if (receivedChar == 'C') currentState = State::COMBAT_MODE;
         if (receivedChar == 'D') currentState = State::WHITE_ZONE;
-        if (receivedChar == 'N');
+        if (receivedChar == 'N') LIM_SPEED = 2 * MIN_SPEED;
         if (receivedChar == '1');
         if (receivedChar == '2');
         if (receivedChar == '3');
