@@ -14,18 +14,27 @@ const int angles[] = {45, 90, 120}; // Lista de ángulos
 int angleIndex = 0;  // Índice para iterar entre los ángulos
 int commandAngle = 4;
 
+int distance = 0;
+bool measure = true;
+float Distance = 0.0;
+
 int direction = 1;  // 1 para giro a la derecha, -1 para giro a la izquierda
 
 bool useEmitters = true;
 bool running = false;
 
+unsigned long startTime;
+unsigned long endTime;
+
 Zumo32U4LineSensors lineSensors;
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
+Zumo32U4Buzzer buzzer;
 
 enum class State : uint8_t {
     FOLLOW_LINE,
     BLACK_ZONE,
+    MEASUREMENT,
     WHITE_ZONE,
     TURN_RIGHT,
     TURN_LEFT
@@ -106,8 +115,6 @@ void updateAngle() {
         // Reinicia el ciclo de ángulos (itera cíclicamente entre 45, 90, 120)
         angleIndex = (angleIndex + 1) % 3;
     }
-    Serial1.print("Angle Index = ");
-    Serial1.println(angleIndex);
 }
 
 void turnNextAngle(int direction) {
@@ -167,25 +174,50 @@ void loop() {
             break;
     
         case State::BLACK_ZONE:
-            motors.setSpeeds(LIM_SPEED, LIM_SPEED);  // Avanzar en línea recta
-            if (allOnWhite()) {
-                Serial1.println("WHITE_ZONE");
-                currentState = State::WHITE_ZONE;
+              startTime = millis();
+              encoders.getCountsAndResetLeft();
+              encoders.getCountsAndResetRight();
+              motors.setSpeeds(LIM_SPEED, LIM_SPEED);  // Avanzar en línea recta
+              buzzer.play("L16 cdegreg4");
+              delay(1000);
+              currentState = State::MEASUREMENT;
+            break;
+
+        case State::MEASUREMENT:
+            if (lineSensorValues[2] > THRESHOLD_HIGH || lineSensorValues[3] > THRESHOLD_HIGH || lineSensorValues[4] > THRESHOLD_HIGH)
+            {
+              distance = encoders.getCountsRight();
+              Serial1.print("Distance = ");
+              Distance = (distance * 4 * 3.141592)/ 909;
+              Serial1.print(Distance);
+              Serial1.println(" cm");
+              currentState = State::WHITE_ZONE;
+              buzzer.play(">g32>>c32");
             }
+            else if (lineSensorValues[0] > THRESHOLD_HIGH || lineSensorValues[1] > THRESHOLD_HIGH)
+            {
+              distance = encoders.getCountsRight();
+              Serial1.print("Distance = ");
+              Distance = (distance * 4 * 3.141592)/ 909;
+              Serial1.print(Distance);
+              Serial1.println(" cm");
+              currentState = State::WHITE_ZONE;
+              buzzer.play(">g32>>c32");
+            }
+            Serial1.println("White Zone");
             break;
     
         case State::WHITE_ZONE:
+            
             // Comprobar si es necesario girar a la izquierda o derecha
             if (lineSensorValues[2] > THRESHOLD_HIGH || lineSensorValues[3] > THRESHOLD_HIGH || lineSensorValues[4] > THRESHOLD_HIGH) {
                 motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
                 delay(REVERSE_DURATION);
-                Serial1.println("turn_left");
                 currentState = State::TURN_LEFT;  // Cambiar a giro a la izquierda
             } 
             else if (lineSensorValues[0] > THRESHOLD_HIGH || lineSensorValues[1] > THRESHOLD_HIGH) {
                 motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
                 delay(REVERSE_DURATION);
-                Serial1.println("turn_right");
                 currentState = State::TURN_RIGHT;  // Cambiar a giro a la derecha
             }
             break;
@@ -202,6 +234,17 @@ void loop() {
         default:
             //Serial1.println("White State");
             break;
+    }
+
+    endTime = millis();
+    if (endTime - startTime >= 180000) {  // 3 minutes in milliseconds
+      buzzer.play("L16 c e g c5");
+      Serial1.print("Time = ");
+      Serial1.print(endTime/1000);
+      Serial1.println(" s");
+      motors.setSpeeds(0, 0);  // Stop the robot
+      Serial1.println("Stopping the robot.");
+      running = false;   // Halt execution
     }
 }
 
