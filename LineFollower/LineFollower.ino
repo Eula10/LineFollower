@@ -22,16 +22,18 @@ bool running = false;
 Zumo32U4LineSensors lineSensors;
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
+Zumo32U4ProximitySensors proxSensors;
 
 enum class State : uint8_t {
     FOLLOW_LINE,
     BLACK_ZONE,
     WHITE_ZONE,
     TURN_RIGHT,
-    TURN_LEFT
+    TURN_LEFT,
+    COMBAT_MODE
 };
 
-State currentState = State::FOLLOW_LINE;
+volatile State currentState = State::FOLLOW_LINE;
 
 // Define PID constants for easy modification
 float Kp = 0.25;  // Proportional
@@ -46,6 +48,21 @@ char buffer[10];
 static uint16_t lastSampleTime = 0;
 
 unsigned int lineSensorValues[NUM_SENSORS];
+
+//Combat Mode
+const uint8_t sensorThreshold = 1;
+const uint16_t turnSpeedMax = 150;
+const uint16_t turnSpeedMin = 100;
+const uint16_t deceleration = 10;
+const uint16_t acceleration = 10;
+
+#define LEFT 0
+#define RIGHT 1
+
+bool senseDir = RIGHT;
+uint16_t turnSpeed = turnSpeedMax;
+
+
 
 void calibrateSensors() {
    // Wait 1 second and then calibrate the sensors while rotating
@@ -82,9 +99,7 @@ void followLine(int16_t position) {
 // Check if all sensors detect black (> 800)
 bool allOnBlack() {
     for (int i = 0; i < NUM_SENSORS; i++) {
-        if (lineSensorValues[i] < THRESHOLD_HIGH) {
-            return false;
-        }
+        if (lineSensorValues[i] < THRESHOLD_HIGH) return false;
     }
     return true;
 }
@@ -92,11 +107,16 @@ bool allOnBlack() {
 // Check if all sensors detect white (< 200)
 bool allOnWhite() {
     for (int i = 0; i < NUM_SENSORS; i++) {
-        if (lineSensorValues[i] > THRESHOLD_LOW) {
-            return false;
-        }
+        if (lineSensorValues[i] > THRESHOLD_LOW) return false;
     }
     return true;
+}
+
+bool detectEdge() {
+  for (int i = 0; i < NUM_SENSORS; i++) {
+      if (lineSensorValues[i] > THRESHOLD_HIGH) return true;  // Si detectamos un borde, salimos del bucle
+  }
+  return false;
 }
 
 void updateAngle() {
@@ -108,6 +128,14 @@ void updateAngle() {
     }
     Serial1.print("Angle Index = ");
     Serial1.println(angleIndex);
+}
+
+void stop() {
+  motors.setSpeeds(0, 0);
+}
+
+void moveForward() {
+  motors.setSpeeds(200, 200);  // Avanza hacia adelante con velocidad 200
 }
 
 void turnNextAngle(int direction) {
@@ -138,6 +166,7 @@ void setup() {
   Serial1.print("Battery Level: ");  
   Serial1.println(batteryLevel);
   lineSensors.initFiveSensors();
+  proxSensors.initFrontSensor();
 
   calibrateSensors();
 
@@ -156,7 +185,13 @@ void loop() {
     
     // Obtener posición de la línea
     int16_t position = lineSensors.readLine(lineSensorValues);
-    
+
+    Serial1.print("currentState = ");
+    Serial1.println(static_cast<uint8_t>(currentState));
+    if (currentState == State::COMBAT_MODE) {
+    Serial1.println("Entrando a COMBAT_MODE antes del switch");
+}
+
     switch (currentState) {
         case State::FOLLOW_LINE:
             followLine(position);
@@ -198,9 +233,60 @@ void loop() {
             Serial1.println("Moving Forward");
             currentState = State::WHITE_ZONE;  // Resetea el estado después de girar
             break;
+
+        case State::COMBAT_MODE:
+          Serial1.println("Combat Mode On");
+          Serial1.print("Edge = ");
+//            if (detectEdge()) {
+//                 motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
+//                delay(REVERSE_DURATION);
+//                turnAngle(180,1);
+//                motors.setSpeeds(LIM_SPEED, LIM_SPEED);
+//                delay(REVERSE_DURATION);                
+//            }
+//            proxSensors.read();
+//            uint8_t leftValue = proxSensors.countsFrontWithLeftLeds();
+//            Serial1.print("leftValue = ");
+//            Serial1.println(leftValue);
+//            uint8_t rightValue = proxSensors.countsFrontWithRightLeds();
+//            Serial1.print("rightValue = ");
+//            Serial1.println(rightValue);
+//
+//            // Determine if an object is visible or not.
+//            bool objectSeen = leftValue >= sensorThreshold || rightValue >= sensorThreshold;
+//            Serial1.print("objectSeen = ");
+//            Serial1.println(objectSeen);
+//
+//              if (objectSeen) {
+//                  // Adjust turn speed based on whether an object is detected
+//                  turnSpeed = (leftValue < rightValue) ? turnSpeedMax - deceleration : (leftValue > rightValue) ? turnSpeedMax - deceleration : turnSpeedMax;
+//                  
+//                  if (leftValue < rightValue) {
+//                    motors.setSpeeds(turnSpeed, -turnSpeed);  // Turn right
+//                    senseDir = RIGHT;
+//                  } 
+//                  else if (leftValue > rightValue) {
+//                    motors.setSpeeds(-turnSpeed, turnSpeed);  // Turn left
+//                    senseDir = LEFT;
+//                  } 
+//                  else {
+//                    // Both sensors detect equally, move forward
+//                    moveForward();
+//                  }
+//                }
+//                else {
+//                  // No object detected, continue turning in the last sensed direction
+//                  if (senseDir == RIGHT) {
+//                    motors.setSpeeds(turnSpeed, -turnSpeed);  // Turn right
+//                  } 
+//                  else {
+//                    motors.setSpeeds(-turnSpeed, turnSpeed);  // Turn left
+//                  }
+//                }
+            break;
     
         default:
-            //Serial1.println("White State");
+            Serial1.println("indefinido");
             break;
     }
 }
@@ -212,6 +298,12 @@ void serialEvent1() {
         if (receivedChar == 'S') running = true;
         if (receivedChar == 'P') running = false;
         if (receivedChar == 'B') LIM_SPEED = 400;
+        if (receivedChar == 'C') currentState = State::COMBAT_MODE;
+        Serial1.print("Recibido: ");
+        Serial1.println(receivedChar);
+        Serial1.print("Nuevo estado: ");
+        Serial1.println(static_cast<uint8_t>(currentState));
+        if (receivedChar == 'D') currentState = State::WHITE_ZONE;
         if (receivedChar == 'N') LIM_SPEED = 2 * MIN_SPEED;
         if (receivedChar == '1') commandAngle = 1;
         if (receivedChar == '2') commandAngle = 2;
