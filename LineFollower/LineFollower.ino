@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <Zumo32U4.h>
 
-const int MIN_SPEED = 41;
+const int MIN_SPEED = 50;
 int LIM_SPEED = 2 * MIN_SPEED; //Min speed = 41, Max speed = 400
 const int NUM_SENSORS = 5;
 const int REVERSE_DURATION = 500;
@@ -37,7 +37,8 @@ enum class State : uint8_t {
     MEASUREMENT,
     WHITE_ZONE,
     TURN_RIGHT,
-    TURN_LEFT
+    TURN_LEFT,
+    STOP
 };
 
 State currentState = State::FOLLOW_LINE;
@@ -175,6 +176,9 @@ void loop() {
     
         case State::BLACK_ZONE:
               startTime = millis();
+              endTime = millis();
+              Serial1.print("StartTime = ");
+              Serial1.println(startTime/1000);
               encoders.getCountsAndResetLeft();
               encoders.getCountsAndResetRight();
               motors.setSpeeds(LIM_SPEED, LIM_SPEED);  // Avanzar en línea recta
@@ -204,11 +208,10 @@ void loop() {
               currentState = State::WHITE_ZONE;
               buzzer.play(">g32>>c32");
             }
-            Serial1.println("White Zone");
+        
             break;
     
-        case State::WHITE_ZONE:
-            
+        case State::WHITE_ZONE:            
             // Comprobar si es necesario girar a la izquierda o derecha
             if (lineSensorValues[2] > THRESHOLD_HIGH || lineSensorValues[3] > THRESHOLD_HIGH || lineSensorValues[4] > THRESHOLD_HIGH) {
                 motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
@@ -227,7 +230,6 @@ void loop() {
             int direction = (currentState == State::TURN_LEFT) ? 1 : -1;
             turnNextAngle(direction);  // Gira dependiendo de la dirección
             motors.setSpeeds(LIM_SPEED, LIM_SPEED);
-            Serial1.println("Moving Forward");
             currentState = State::WHITE_ZONE;  // Resetea el estado después de girar
             break;
     
@@ -236,15 +238,23 @@ void loop() {
             break;
     }
 
-    endTime = millis();
-    if (endTime - startTime >= 180000) {  // 3 minutes in milliseconds
+
+
+
+    
+    if (endTime - startTime >= 30000) {  // 3 minutes in milliseconds
       buzzer.play("L16 c e g c5");
       Serial1.print("Time = ");
-      Serial1.print(endTime/1000);
+      Serial1.print((endTime - startTime)/1000);
       Serial1.println(" s");
       motors.setSpeeds(0, 0);  // Stop the robot
       Serial1.println("Stopping the robot.");
-      running = false;   // Halt execution
+      currentState = State::STOP;
+    }else{
+      endTime = millis();
+      Serial1.print("Time = ");
+      Serial1.print((endTime - startTime)/ 1000);
+      Serial1.println(" s");
     }
 }
 
