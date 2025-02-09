@@ -1,7 +1,7 @@
 #include <Wire.h>
 #include <Zumo32U4.h>
 
-const int MIN_SPEED = 50;
+const int MIN_SPEED = 60;
 int LIM_SPEED = 2 * MIN_SPEED; //Min speed = 41, Max speed = 400
 const int NUM_SENSORS = 5;
 const int REVERSE_DURATION = 500;
@@ -30,6 +30,7 @@ Zumo32U4LineSensors lineSensors;
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
 Zumo32U4Buzzer buzzer;
+Zumo32U4ProximitySensors proxSensors;
 
 enum class State : uint8_t {
     FOLLOW_LINE,
@@ -42,6 +43,37 @@ enum class State : uint8_t {
 };
 
 State currentState = State::FOLLOW_LINE;
+
+// A sensors reading must be greater than or equal to this
+// threshold in order for the program to consider that sensor as
+// seeing an object.
+const uint8_t sensorThreshold = 1;
+
+// The maximum speed to drive the motors while turning. 
+const uint16_t turnSpeedMax = 400;
+
+// The minimum speed to drive the motors while turning. 
+const uint16_t turnSpeedMin = 100;
+
+// The amount to decrease the motor speed by during each cycle
+// when an object is seen.
+const uint16_t deceleration = 10;
+
+// The amount to increase the speed by during each cycle when an
+// object is not seen.
+const uint16_t acceleration = 10;
+
+#define LEFT 0
+#define RIGHT 1
+
+// Stores the last indication from the sensors about what
+// direction to turn to face the object.  
+bool senseDir = RIGHT;
+
+uint16_t turnSpeed = turnSpeedMax;
+
+
+
 
 // Define PID constants for easy modification
 float Kp = 0.25;  // Proportional
@@ -138,7 +170,18 @@ void turnAngle(int angle, int direction){
     motors.setSpeeds(0, 0); // Detener motores después del giro
 }  
 
+void stop() {
+  motors.setSpeeds(0, 0);
+}
+
+void moveForward() {
+  motors.setSpeeds(200, 200);  // Avanza hacia adelante con velocidad 200
+}
+
+
 void setup() {
+  
+  proxSensors.initFrontSensor();
   uint16_t batteryLevel = readBatteryMillivolts();
   
   Serial1.begin(38400);
@@ -157,7 +200,7 @@ void setup() {
 }
 
 void loop() {
-    if (!running) {
+    if (running) {
         motors.setSpeeds(0, 0);
         return;
     }
@@ -211,26 +254,83 @@ void loop() {
         
             break;
     
-        case State::WHITE_ZONE:            
+        case State::WHITE_ZONE: 
+            Serial1.print("In white Zone");           
             // Comprobar si es necesario girar a la izquierda o derecha
             if (lineSensorValues[2] > THRESHOLD_HIGH || lineSensorValues[3] > THRESHOLD_HIGH || lineSensorValues[4] > THRESHOLD_HIGH) {
+                Serial1.print("Try to turn Left");
                 motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
                 delay(REVERSE_DURATION);
+                Serial1.print("currentState como número: ");
+                Serial1.println(static_cast<int>(currentState));
                 currentState = State::TURN_LEFT;  // Cambiar a giro a la izquierda
+                Serial1.print("currentState como número: ");
+                Serial1.println(static_cast<int>(currentState));
             } 
             else if (lineSensorValues[0] > THRESHOLD_HIGH || lineSensorValues[1] > THRESHOLD_HIGH) {
+                Serial1.print("Try to turn Rigth");
                 motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
                 delay(REVERSE_DURATION);
+                Serial1.print("currentState como número: ");
+                Serial1.println(static_cast<int>(currentState));
                 currentState = State::TURN_RIGHT;  // Cambiar a giro a la derecha
+                Serial1.print("currentState como número: ");
+                Serial1.println(static_cast<int>(currentState));
             }
+
+            // Read the front proximity sensors
+//            proxSensors.read();
+//            Serial1.print("Reading Sensor");
+//            uint8_t leftValue = 0;//proxSensors.countsFrontWithLeftLeds();
+//            uint8_t rightValue = 0;//proxSensors.countsFrontWithRightLeds();
+////            Serial1.print("end reading sensor");
+//
+//            // Determine if an object is visible or not.
+//            bool objectSeen = leftValue >= sensorThreshold || rightValue >= sensorThreshold;
+          
+//            if (objectSeen) {
+//              Serial1.print("Object detected");
+//              // Adjust turn speed based on whether an object is detected
+//              turnSpeed = (leftValue < rightValue) ? turnSpeedMax - deceleration : (leftValue > rightValue) ? turnSpeedMax - deceleration : turnSpeedMax;
+//              
+//              if (leftValue < rightValue) {
+//                motors.setSpeeds(turnSpeed, -turnSpeed);  // Turn right
+//                senseDir = RIGHT;
+//              } 
+//              else if (leftValue > rightValue) {
+//                motors.setSpeeds(-turnSpeed, turnSpeed);  // Turn left
+//                senseDir = LEFT;
+//              } 
+//              else {
+//                // Both sensors detect equally, move forward
+//                moveForward();
+//              }
+//            }
+//            else {
+//              // No object detected, continue turning in the last sensed direction
+//              if (senseDir == RIGHT) {
+//                motors.setSpeeds(turnSpeed, -turnSpeed);  // Turn right
+//              } 
+//              else {
+//                motors.setSpeeds(-turnSpeed, turnSpeed);  // Turn left
+//              }
+//            }
+
+
+            
             break;
-    
+
+
+
         case State::TURN_LEFT:
         case State::TURN_RIGHT:
+            Serial1.print("currentState como número: ");
+            Serial1.println(static_cast<int>(currentState));
             int direction = (currentState == State::TURN_LEFT) ? 1 : -1;
             turnNextAngle(direction);  // Gira dependiendo de la dirección
             motors.setSpeeds(LIM_SPEED, LIM_SPEED);
             currentState = State::WHITE_ZONE;  // Resetea el estado después de girar
+            Serial1.print("End of the turn");
             break;
     
         default:
@@ -242,7 +342,7 @@ void loop() {
 
 
     
-    if (endTime - startTime >= 30000) {  // 3 minutes in milliseconds
+    if (endTime - startTime >= 150000) {  // 3 minutes in milliseconds
       buzzer.play("L16 c e g c5");
       Serial1.print("Time = ");
       Serial1.print((endTime - startTime)/1000);
@@ -252,9 +352,11 @@ void loop() {
       currentState = State::STOP;
     }else{
       endTime = millis();
-      Serial1.print("Time = ");
-      Serial1.print((endTime - startTime)/ 1000);
-      Serial1.println(" s");
+      if ((endTime - startTime) % 10000 == 0) {
+          Serial1.print("Time = ");
+          Serial1.print((endTime - startTime)/ 1000);
+          Serial1.println(" s");
+      }
     }
 }
 
@@ -264,7 +366,7 @@ void serialEvent1() {
         char receivedChar = Serial1.read();  
         if (receivedChar == 'S') running = true;
         if (receivedChar == 'P') running = false;
-        if (receivedChar == 'B') LIM_SPEED = 400;
+        if (receivedChar == 'B') LIM_SPEED = 300;
         if (receivedChar == 'N') LIM_SPEED = 2 * MIN_SPEED;
         if (receivedChar == '1') commandAngle = 1;
         if (receivedChar == '2') commandAngle = 2;
