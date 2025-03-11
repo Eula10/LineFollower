@@ -71,7 +71,15 @@ void setup() {
 
 }
 
+int timer1s = 0;
+int timer500ms = 0;
+
 void loop() {
+    if (running) {
+       // motors.setSpeeds(0, 0);
+        //return;
+    }
+    
     // Obtener posición de la línea
     int16_t position = lineSensors.readLine(lineSensorValues);
     
@@ -79,56 +87,56 @@ void loop() {
         case State::FOLLOW_LINE:
             followLine(position);
             if (allOnWhite()) {
+                moveForward();
+                timer1s = millis();
                 currentState = State::AVANCER_1s;
+            }
+            if (allOnBlack()) {
+                currentState = State::AVANCER_500ms;
+                timer500ms = millis();
             }
             break;
     
-        case State::WHITE_ZONE: 
-            Serial1.print("In white Zone");           
-            // Comprobar si es necesario girar a la izquierda o derecha
-            if (lineSensorValues[2] > THRESHOLD_HIGH || lineSensorValues[3] > THRESHOLD_HIGH || lineSensorValues[4] > THRESHOLD_HIGH) {
-                Serial1.print("Try to turn Left");
-                motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
-                delay(REVERSE_DURATION);
-                Serial1.print("currentState como número: ");
-                Serial1.println(static_cast<int>(currentState));
-                currentState = State::TURN_LEFT;  // Cambiar a giro a la izquierda
-                Serial1.print("currentState como número: ");
-                Serial1.println(static_cast<int>(currentState));
+        case State::AVANCER_1s: 
+            if (!AllOnWhite()) {
+                currentState = State::DECODE;
             } 
-            else if (lineSensorValues[0] > THRESHOLD_HIGH || lineSensorValues[1] > THRESHOLD_HIGH) {
-                Serial1.print("Try to turn Rigth");
-                motors.setSpeeds(-LIM_SPEED, -LIM_SPEED);
-                delay(REVERSE_DURATION);
-                Serial1.print("currentState como número: ");
-                Serial1.println(static_cast<int>(currentState));
-                currentState = State::TURN_RIGHT;  // Cambiar a giro a la derecha
-                Serial1.print("currentState como número: ");
-                Serial1.println(static_cast<int>(currentState));
-            }    
+            else if ( ((timer1s - (millis())) >= 1000 ) ) {
+                currentState = State::STRAIGHT;
+            } 
             break;
+
+        case State::DECODE: 
+            if (FM>=16 && AllOnWhite()) {
+                currentState = State::FOLLOW_LINE;
+            }
+            break;
+
+        case State::AVANCER_500ms: 
+            if ( ((timer500ms - (millis())) >= 500 ) ) {
+                currentState = State::STOP;
+            } 
+            else if (!AllOnBlack())) {
+                currentState = State::FOLLOW_LINE;
+            } 
+            break;
+
+        case State::STRAIGHT: 
+            if (!AllOnWhite()) {
+                currentState = State::FOLLOW_LINE;
+            }
+            break;
+
+         case State::STOP: 
+            stop();
+            break;
+            
        default:
             //Serial1.println("White State");
             break;
     }
-    
-    if (endTime - startTime >= 150000) {  // 3 minutes in milliseconds
-      buzzer.play("L16 c e g c5");
-      Serial1.print("Time = ");
-      Serial1.print((endTime - startTime)/1000);
-      Serial1.println(" s");
-      motors.setSpeeds(0, 0);  // Stop the robot
-      Serial1.println("Stopping the robot.");
-      currentState = State::STOP;
-    }else{
-      endTime = millis();
-      if ((endTime - startTime) % 10000 == 0) {
-          Serial1.print("Time = ");
-          Serial1.print((endTime - startTime)/ 1000);
-          Serial1.println(" s");
-      }
-    }
 }
+
 
 void serialEvent1() {                                             //Data in Serial1
     while (Serial1.available()) {  
