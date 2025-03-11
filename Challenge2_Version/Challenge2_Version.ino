@@ -1,93 +1,12 @@
 #include <Wire.h>
+#include <Param.h>
 #include <Zumo32U4.h>
-
-const int MIN_SPEED = 60;
-int LIM_SPEED = 2 * MIN_SPEED; //Min speed = 41, Max speed = 400
-const int NUM_SENSORS = 5;
-const int REVERSE_DURATION = 500;
-
-const int THRESHOLD_HIGH = 800;
-const int THRESHOLD_LOW = 200;
-
-const int32_t ticksPerTurn = 2490; // Nombre de ticks pour 360°
-const int angles[] = {45, 90, 120}; // Lista de ángulos
-int angleIndex = 0;  // Índice para iterar entre los ángulos
-int commandAngle = 4;
-
-int distance = 0;
-bool measure = true;
-float Distance = 0.0;
-
-int direction = 1;  // 1 para giro a la derecha, -1 para giro a la izquierda
-
-bool useEmitters = true;
-bool running = false;
-
-unsigned long startTime;
-unsigned long endTime;
 
 Zumo32U4LineSensors lineSensors;
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
 Zumo32U4Buzzer buzzer;
-Zumo32U4ProximitySensors proxSensors;
-
-enum class State : uint8_t {
-    FOLLOW_LINE,
-    BLACK_ZONE,
-    MEASUREMENT,
-    WHITE_ZONE,
-    TURN_RIGHT,
-    TURN_LEFT,
-    STOP
-};
-
-State currentState = State::FOLLOW_LINE;
-
-// A sensors reading must be greater than or equal to this
-// threshold in order for the program to consider that sensor as
-// seeing an object.
-const uint8_t sensorThreshold = 1;
-
-// The maximum speed to drive the motors while turning. 
-const uint16_t turnSpeedMax = 400;
-
-// The minimum speed to drive the motors while turning. 
-const uint16_t turnSpeedMin = 100;
-
-// The amount to decrease the motor speed by during each cycle
-// when an object is seen.
-const uint16_t deceleration = 10;
-
-// The amount to increase the speed by during each cycle when an
-// object is not seen.
-const uint16_t acceleration = 10;
-
-#define LEFT 0
-#define RIGHT 1
-
-// Stores the last indication from the sensors about what
-// direction to turn to face the object.  
-bool senseDir = RIGHT;
-
-uint16_t turnSpeed = turnSpeedMax;
-
-
-
-
-// Define PID constants for easy modification
-float Kp = 0.25;  // Proportional
-float Ki = 0.0;   // Integral (adjust if necessary)
-float Kd = 6.0;   // Derivative
-
-int16_t integral = 0;  // Accumulator for the integral term
-int16_t lastError = 0; // Last error for derivative calculation
-
-char buffer[10];
-
-static uint16_t lastSampleTime = 0;
-
-unsigned int lineSensorValues[NUM_SENSORS];
+Zumo32U4ProximitySensors proxSensors
 
 void calibrateSensors() {
    // Wait 1 second and then calibrate the sensors while rotating
@@ -103,23 +22,7 @@ void calibrateSensors() {
   motors.setSpeeds(0, 0);
 }
 
-void followLine(int16_t position) {
-  int16_t error = position - 2000;
-  integral += error;
-  int16_t speedDifference = (Kp * error) + (Ki * integral) + (Kd * (error - lastError));
-  lastError = error; 
 
-  // Calculate motor speeds
-  int16_t leftSpeed = (int16_t)LIM_SPEED + speedDifference;
-  int16_t rightSpeed = (int16_t)LIM_SPEED - speedDifference;
-
-  // Restrict speeds to avoid out-of-range values
-  leftSpeed = constrain(leftSpeed, 0, (int16_t)LIM_SPEED);
-  rightSpeed = constrain(rightSpeed, 0, (int16_t)LIM_SPEED);
-
-  // Apply speeds to the motors
-  motors.setSpeeds(leftSpeed, rightSpeed);
-}
 
 // Check if all sensors detect black (> 800)
 bool allOnBlack() {
@@ -337,10 +240,6 @@ void loop() {
             //Serial1.println("White State");
             break;
     }
-
-
-
-
     
     if (endTime - startTime >= 150000) {  // 3 minutes in milliseconds
       buzzer.play("L16 c e g c5");
