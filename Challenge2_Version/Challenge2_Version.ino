@@ -83,23 +83,8 @@ void moveForward() {
 
 
 void setup() {
-  
-  proxSensors.initFrontSensor();
-  uint16_t batteryLevel = readBatteryMillivolts();
-  
-  Serial1.begin(38400);
-  Serial.begin(9600);  
-  Serial1.print("Battery Level: ");  
-  Serial1.println(batteryLevel);
-  lineSensors.initFiveSensors();
+  initSystem();
 
-  calibrateSensors();
-
-  // Initialize integral to 0
-  integral = 0;
-  lastSampleTime = 0;
-
-  Serial1.write("START\n");
 }
 
 void loop() {
