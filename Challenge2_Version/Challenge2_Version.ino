@@ -1,28 +1,12 @@
 #include <Wire.h>
 #include <Param.h>
 #include <Zumo32U4.h>
+#include <initialization.h>
 
 Zumo32U4LineSensors lineSensors;
 Zumo32U4Motors motors;
 Zumo32U4Encoders encoders;
 Zumo32U4Buzzer buzzer;
-Zumo32U4ProximitySensors proxSensors
-
-void calibrateSensors() {
-   // Wait 1 second and then calibrate the sensors while rotating
-  delay(1000);
-  for (uint16_t i = 0; i < 120; i++) {
-    if (i > 30 && i <= 90) {
-      motors.setSpeeds(-200 , 200 );
-    } else {
-      motors.setSpeeds(200 , -200 );
-    }
-    lineSensors.calibrate();
-  }
-  motors.setSpeeds(0, 0);
-}
-
-
 
 // Check if all sensors detect black (> 800)
 bool allOnBlack() {
@@ -88,11 +72,6 @@ void setup() {
 }
 
 void loop() {
-    if (running) {
-       // motors.setSpeeds(0, 0);
-        //return;
-    }
-    
     // Obtener posición de la línea
     int16_t position = lineSensors.readLine(lineSensorValues);
     
@@ -151,17 +130,8 @@ void loop() {
     }
 }
 
-  // Esta función se ejecuta automáticamente cuando hay datos en Serial1
-void serialEvent1() {
+void serialEvent1() {                                             //Data in Serial1
     while (Serial1.available()) {  
-        char receivedChar = Serial1.read();  
-        if (receivedChar == 'S') running = true;
-        if (receivedChar == 'P') running = false;
-        if (receivedChar == 'B') LIM_SPEED = 300;
-        if (receivedChar == 'N') LIM_SPEED = 2 * MIN_SPEED;
-        if (receivedChar == '1') commandAngle = 1;
-        if (receivedChar == '2') commandAngle = 2;
-        if (receivedChar == '3') commandAngle = 3;
-        if (receivedChar == '4') commandAngle = 4;
+        char receivedChar = Serial1.read();
     }
 }

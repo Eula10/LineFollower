@@ -1,3 +1,5 @@
+#include <initialization.h>
+
 void initSystem(){  
   lineSensors.initFiveSensors();
   
@@ -11,6 +13,18 @@ void initSystem(){
   calibrateSensors();
   
   Serial1.println("Initialization completed");
-  
+}
 
+void calibrateSensors() {
+   // Wait 1 second and then calibrate the sensors while rotating
+  delay(1000);
+  for (uint16_t i = 0; i < 120; i++) {
+    if (i > 30 && i <= 90) {
+      motors.setSpeeds(-200 , 200 );
+    } else {
+      motors.setSpeeds(200 , -200 );
+    }
+    lineSensors.calibrate();
+  }
+  motors.setSpeeds(0, 0);
 }
