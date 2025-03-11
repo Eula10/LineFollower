@@ -104,8 +104,8 @@ void setup() {
 
 void loop() {
     if (running) {
-        motors.setSpeeds(0, 0);
-        return;
+       // motors.setSpeeds(0, 0);
+        //return;
     }
     
     // Obtener posición de la línea
@@ -114,47 +114,9 @@ void loop() {
     switch (currentState) {
         case State::FOLLOW_LINE:
             followLine(position);
-            if (allOnBlack()) {
-                Serial1.println("BLACK_ZONE");
-                currentState = State::BLACK_ZONE;
+            if (allOnWhite()) {
+                currentState = State::AVANCER_1s;
             }
-            break;
-    
-        case State::BLACK_ZONE:
-              startTime = millis();
-              endTime = millis();
-              Serial1.print("StartTime = ");
-              Serial1.println(startTime/1000);
-              encoders.getCountsAndResetLeft();
-              encoders.getCountsAndResetRight();
-              motors.setSpeeds(LIM_SPEED, LIM_SPEED);  // Avanzar en línea recta
-              buzzer.play("L16 cdegreg4");
-              delay(1000);
-              currentState = State::MEASUREMENT;
-            break;
-
-        case State::MEASUREMENT:
-            if (lineSensorValues[2] > THRESHOLD_HIGH || lineSensorValues[3] > THRESHOLD_HIGH || lineSensorValues[4] > THRESHOLD_HIGH)
-            {
-              distance = encoders.getCountsRight();
-              Serial1.print("Distance = ");
-              Distance = (distance * 4 * 3.141592)/ 909;
-              Serial1.print(Distance);
-              Serial1.println(" cm");
-              currentState = State::WHITE_ZONE;
-              buzzer.play(">g32>>c32");
-            }
-            else if (lineSensorValues[0] > THRESHOLD_HIGH || lineSensorValues[1] > THRESHOLD_HIGH)
-            {
-              distance = encoders.getCountsRight();
-              Serial1.print("Distance = ");
-              Distance = (distance * 4 * 3.141592)/ 909;
-              Serial1.print(Distance);
-              Serial1.println(" cm");
-              currentState = State::WHITE_ZONE;
-              buzzer.play(">g32>>c32");
-            }
-        
             break;
     
         case State::WHITE_ZONE: 
@@ -179,64 +141,9 @@ void loop() {
                 currentState = State::TURN_RIGHT;  // Cambiar a giro a la derecha
                 Serial1.print("currentState como número: ");
                 Serial1.println(static_cast<int>(currentState));
-            }
-
-            // Read the front proximity sensors
-//            proxSensors.read();
-//            Serial1.print("Reading Sensor");
-//            uint8_t leftValue = 0;//proxSensors.countsFrontWithLeftLeds();
-//            uint8_t rightValue = 0;//proxSensors.countsFrontWithRightLeds();
-////            Serial1.print("end reading sensor");
-//
-//            // Determine if an object is visible or not.
-//            bool objectSeen = leftValue >= sensorThreshold || rightValue >= sensorThreshold;
-          
-//            if (objectSeen) {
-//              Serial1.print("Object detected");
-//              // Adjust turn speed based on whether an object is detected
-//              turnSpeed = (leftValue < rightValue) ? turnSpeedMax - deceleration : (leftValue > rightValue) ? turnSpeedMax - deceleration : turnSpeedMax;
-//              
-//              if (leftValue < rightValue) {
-//                motors.setSpeeds(turnSpeed, -turnSpeed);  // Turn right
-//                senseDir = RIGHT;
-//              } 
-//              else if (leftValue > rightValue) {
-//                motors.setSpeeds(-turnSpeed, turnSpeed);  // Turn left
-//                senseDir = LEFT;
-//              } 
-//              else {
-//                // Both sensors detect equally, move forward
-//                moveForward();
-//              }
-//            }
-//            else {
-//              // No object detected, continue turning in the last sensed direction
-//              if (senseDir == RIGHT) {
-//                motors.setSpeeds(turnSpeed, -turnSpeed);  // Turn right
-//              } 
-//              else {
-//                motors.setSpeeds(-turnSpeed, turnSpeed);  // Turn left
-//              }
-//            }
-
-
-            
+            }    
             break;
-
-
-
-        case State::TURN_LEFT:
-        case State::TURN_RIGHT:
-            Serial1.print("currentState como número: ");
-            Serial1.println(static_cast<int>(currentState));
-            int direction = (currentState == State::TURN_LEFT) ? 1 : -1;
-            turnNextAngle(direction);  // Gira dependiendo de la dirección
-            motors.setSpeeds(LIM_SPEED, LIM_SPEED);
-            currentState = State::WHITE_ZONE;  // Resetea el estado después de girar
-            Serial1.print("End of the turn");
-            break;
-    
-        default:
+       default:
             //Serial1.println("White State");
             break;
     }

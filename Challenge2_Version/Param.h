@@ -25,11 +25,10 @@ unsigned long endTime;
 
 enum class State : uint8_t {
     FOLLOW_LINE,
-    BLACK_ZONE,
-    MEASUREMENT,
-    WHITE_ZONE,
-    TURN_RIGHT,
-    TURN_LEFT,
+    AVANCER_1s,
+    DECODE,
+    STRAIGHT,
+    AVANCER_500ms,
     STOP
 };
 
