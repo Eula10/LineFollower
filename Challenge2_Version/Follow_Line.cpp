@@ -1,4 +1,18 @@
-#include <Follow_Line.h>
+#include <Wire.h>
+#include "Param.h"
+#include <Zumo32U4.h>
+#include "initialization.h"
+#include "Follow_Line.h"
+
+int integral = 0;
+
+int LIM_SPEED = 2 * MIN_SPEED;
+
+float Kp = 0.25;  // Proportional
+float Ki = 0.0;   // Integral (adjust if necessary)
+float Kd = 6.0;   // Derivative
+
+int16_t lastError = 0;
 
 void followLine(int16_t position) {
   int16_t error = position - 2000;
