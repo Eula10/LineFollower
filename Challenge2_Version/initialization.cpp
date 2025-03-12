@@ -1,4 +1,8 @@
-#include <initialization.h>
+#include "initialization.h"
+#include <Zumo32U4.h>
+
+Zumo32U4LineSensors lineSensors;
+Zumo32U4Motors motors;
 
 void initSystem(){  
   lineSensors.initFiveSensors();
