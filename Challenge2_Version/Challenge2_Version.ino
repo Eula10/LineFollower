@@ -4,7 +4,10 @@
 #include "initialization.h"
 #include "Follow_Line.h"
 
-int timer1s = 0;
+#define vitesse_normale 80
+#define diff_vitesse    20
+
+volatile long long int timer1s = 0;
 volatile long long int timer500ms = 0;
 int FM = 0;
 
@@ -28,6 +31,37 @@ int n = 0;
 
 const int NUM_SENSORS = 5;
 unsigned int lineSensorValues[NUM_SENSORS];
+
+int v_gauche = vitesse_normale;
+int v_droite = vitesse_normale;
+
+void alignement(void)
+{
+  if((lineSensorValues[1] > THRESHOLD_LOW) && !(lineSensorValues[2] > THRESHOLD_LOW))
+  {
+    //Serial1.println("OUI1");
+    v_droite = v_droite + diff_vitesse;
+    v_gauche = 0;
+    //v_gauche = v_gauche - diff_vitesse;
+    
+    motors.setSpeeds(v_gauche, v_droite);
+  }
+  else if(lineSensorValues[3] > THRESHOLD_LOW && !(lineSensorValues[2] > THRESHOLD_LOW))
+  {
+    //Serial1.println("OUI2");
+    v_gauche = v_gauche + diff_vitesse;
+    v_droite = 0;
+    //v_droite = v_droite - diff_vitesse;
+    motors.setSpeeds(v_gauche, v_droite);
+  }
+   else
+  {
+    //Serial1.println("OUI3");
+    v_gauche = vitesse_normale;
+    v_droite = vitesse_normale;
+    motors.setSpeeds(v_gauche, v_droite);
+  }
+}
 
 enum class State : uint8_t {
     FOLLOW_LINE,
@@ -75,44 +109,6 @@ bool detectcode() {
   
 }
 
-bool detectcode2() {
-  if(CapCentralRead2 == 0 &&  (lineSensorValues[1] > THRESHOLD_LOW))
-  {
-    CapCentralRead2 = 1;
-    return true;
-  }
-  else if(CapCentralRead2 == 1 &&  (lineSensorValues[1] < THRESHOLD_HIGH))
-  {
-    CapCentralRead2 = 0;
-    return false;
-  }
-
-  else
-  {
-    return false;
-  }
-  
-}
-
-bool detectcode3() {
-  if(CapCentralRead3 == 0 &&  (lineSensorValues[3] > THRESHOLD_LOW))
-  {
-    CapCentralRead3 = 1;
-    return true;
-  }
-  else if(CapCentralRead3 == 1 &&  (lineSensorValues[3] < THRESHOLD_HIGH))
-  {
-    CapCentralRead3 = 0;
-    return false;
-  }
-
-  else
-  {
-    return false;
-  }
-  
-}
-
 void decoder() {
   if(detectcode() && !Route)
   {
@@ -126,7 +122,7 @@ void decoder() {
     {
       char3 = (char3 << 1) | (lineSensorValues[0] > THRESHOLD_LOW);
       char4 = (char4 << 1) | (lineSensorValues[4] > THRESHOLD_LOW);
-      n++;
+      n=0;;
     }
   }
 
@@ -142,7 +138,7 @@ void decoder() {
     {
       char7 = (char7 << 1) | (lineSensorValues[0] > THRESHOLD_LOW);
       char8 = (char8 << 1) | (lineSensorValues[4] > THRESHOLD_LOW);
-      n++;
+      n=0;
     }
   }
    
@@ -164,7 +160,7 @@ void stop() {
 }
 
 void moveForward() {
-  motors.setSpeeds(120, 120);  // Avanza hacia adelante con velocidad 200
+  motors.setSpeeds(v_gauche, v_droite);  // Avanza hacia adelante con velocidad 200
 }
 
 void setup() {
@@ -175,8 +171,8 @@ void setup() {
 void loop() {
     // Obtener posición de la línea
     int16_t position = lineSensors.readLine(lineSensorValues);
-    
-    switch (currentState) {
+    //currentState = State::DECODE;
+    switch (currentState){
         case State::FOLLOW_LINE:
             followLine(position);
             if (AllOnWhite()) {
@@ -200,13 +196,15 @@ void loop() {
               Serial1.println("DECODE");
                 currentState = State::DECODE;
             } 
-            else if ((millis() - timer1s) >= 500) {
+            else if ((millis() - timer1s) >= 1000) {
               Serial1.println("STRAIGHT");
                 currentState = State::STRAIGHT;
             } 
             break;
 
         case State::DECODE: 
+            alignement();
+            //Serial1.print("N: "); Serial1.println(n);
             if(n<16)
             {
               decoder();
