@@ -4,7 +4,7 @@
 #include "initialization.h"
 #include "Follow_Line.h"
 
-#define vitesse_normale 80
+#define vitesse_normale 100
 #define diff_vitesse    20
 
 volatile long long int timer1s = 0;
@@ -12,6 +12,7 @@ volatile long long int timer500ms = 0;
 int FM = 0;
 
 bool Route = 0;
+bool running = false;
 
 char char1;
 char char2;
@@ -37,7 +38,7 @@ int v_droite = vitesse_normale;
 
 void alignement(void)
 {
-  if((lineSensorValues[1] > THRESHOLD_LOW) && !(lineSensorValues[2] > THRESHOLD_LOW))
+  if((lineSensorValues[1] > THRESHOLD_HIGH) && !(lineSensorValues[2] > THRESHOLD_HIGH))
   {
     //Serial1.println("OUI1");
     v_droite = v_droite + diff_vitesse;
@@ -46,7 +47,7 @@ void alignement(void)
     
     motors.setSpeeds(v_gauche, v_droite);
   }
-  else if(lineSensorValues[3] > THRESHOLD_LOW && !(lineSensorValues[2] > THRESHOLD_LOW))
+  else if(lineSensorValues[3] > THRESHOLD_HIGH && !(lineSensorValues[2] > THRESHOLD_HIGH))
   {
     //Serial1.println("OUI2");
     v_gauche = v_gauche + diff_vitesse;
@@ -91,12 +92,12 @@ bool AllOnBlack() {
 }
 
 bool detectcode() {
-  if(CapCentralRead == 0 &&  (lineSensorValues[2] > THRESHOLD_LOW))
+  if(CapCentralRead == 0 &&  (lineSensorValues[2] > 100))
   {
     CapCentralRead = 1;
     return true;
   }
-  else if(CapCentralRead == 1 &&  (lineSensorValues[2] < THRESHOLD_HIGH))
+  else if(CapCentralRead == 1 &&  (lineSensorValues[2] < 100))
   {
     CapCentralRead = 0;
     return false;
@@ -110,36 +111,42 @@ bool detectcode() {
 }
 
 void decoder() {
-  if(detectcode() && !Route)
+  if(!Route)
+  {
+  if(detectcode())
   {
     if(n<=7)
     {
-      char1 = (char1 << 1) | (lineSensorValues[0] > THRESHOLD_LOW);
-      char2 = (char2 << 1) | (lineSensorValues[4] > THRESHOLD_LOW);
+      char1 = (char1 << 1) | (lineSensorValues[0] > 100);
+      char2 = (char2 << 1) | (lineSensorValues[4] > 100);
       n++;
     }
     else if (n<16)
     {
-      char3 = (char3 << 1) | (lineSensorValues[0] > THRESHOLD_LOW);
-      char4 = (char4 << 1) | (lineSensorValues[4] > THRESHOLD_LOW);
-      n=0;;
+      char3 = (char3 << 1) | (lineSensorValues[0] > 100);
+      char4 = (char4 << 1) | (lineSensorValues[4] > 100);
+      n++;
     }
   }
-
-  else if(detectcode() && Route)
+  }
+  else if(Route)
   {
+    if(detectcode())
+    {
+    //Serial1.println("JE RENTRE");
     if(n<=7)
     {
-      char5 = (char5 << 1) | (lineSensorValues[0] > THRESHOLD_LOW);
-      char6 = (char6 << 1) | (lineSensorValues[4] > THRESHOLD_LOW);
+      char5 = (char5 << 1) | (lineSensorValues[0] > 100);
+      char6 = (char6 << 1) | (lineSensorValues[4] > 100);
       n++;
     }
     else if (n<16)
     {
-      char7 = (char7 << 1) | (lineSensorValues[0] > THRESHOLD_LOW);
-      char8 = (char8 << 1) | (lineSensorValues[4] > THRESHOLD_LOW);
-      n=0;
+      char7 = (char7 << 1) | (lineSensorValues[0] > 100);
+      char8 = (char8 << 1) | (lineSensorValues[4] > 100);
+      n++;
     }
+  }
   }
    
     return true;
@@ -169,6 +176,13 @@ void setup() {
 
 
 void loop() {
+  if(Serial1.available()){
+    char receivedchar = Serial1.read();
+    if (receivedchar == 'G')running = true;
+    if (receivedchar == 'S')running = false;
+  }
+  
+  if(running){
     // Obtener posición de la línea
     int16_t position = lineSensors.readLine(lineSensorValues);
     //currentState = State::DECODE;
@@ -207,6 +221,7 @@ void loop() {
             //Serial1.print("N: "); Serial1.println(n);
             if(n<16)
             {
+              Serial1.print("N: "); Serial1.println(n);
               decoder();
             }
             else
@@ -214,7 +229,7 @@ void loop() {
               if(!Route){
                 
                 if(AllOnWhite())
-                  {delay(250);
+                  {delay(700);
                     Serial1.print(char1);
                     Serial1.print(char2);
                     Serial1.print(char3);
@@ -228,7 +243,7 @@ void loop() {
               else
               {
                if(AllOnWhite())
-                  {delay(250);
+                  {delay(700);
                     Serial1.print(char5);
                     Serial1.print(char6);
                     Serial1.print(char7);
@@ -236,7 +251,7 @@ void loop() {
                     Serial1.println("FOLLOW_LINE");
                     currentState = State::FOLLOW_LINE;
                     n=0;
-                    Route = 1;
+                    Route = 0;
                   }
               }
             }
@@ -269,4 +284,5 @@ void loop() {
             //Serial1.println("White State");
             break;
     }
+  }
 }

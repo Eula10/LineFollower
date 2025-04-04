@@ -1,10 +1,10 @@
 #ifndef __PARAM__H__
   #define __PARAM__H__
 
-const int MIN_SPEED = 60;
+const int MIN_SPEED = 300;
 extern int LIM_SPEED; //Min speed = 41, Max speed = 400
 
-const int THRESHOLD_HIGH = 800;
+const int THRESHOLD_HIGH = 900;
 const int THRESHOLD_LOW = 200;
 
 // A sensors reading must be greater than or equal to this
