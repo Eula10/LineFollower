@@ -5,7 +5,7 @@
 #include "Follow_Line.h"
 
 int timer1s = 0;
-int timer500ms = 0;
+volatile int timer500ms = 0;
 int FM = 0;
 
 bool Route = 0;
@@ -245,13 +245,14 @@ void loop() {
             break;
 
         case State::AVANCER_500ms: 
-            if ((millis() - timer500ms) >= 500)  {
+            if ((millis() - timer500ms) >= 1500)  {
               Serial1.println("STOP");
                 currentState = State::STOP;
             } 
             else if (!AllOnBlack()) {
               Serial1.println("FOLLOW_LINE");
-                currentState = State::FOLLOW_LINE;
+              timer500ms = 0;
+              currentState = State::FOLLOW_LINE;
             } 
             break;
 
